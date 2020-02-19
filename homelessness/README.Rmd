@@ -1,0 +1,36 @@
+---
+output: github_document
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# homelessness
+
+
+The goal of homelessness is to provide useful datasets on homelessness and other characteristics for researchers. The package includes 7 data sets in total: gdp, gini, homeless, population, rentincome, unemployment, and aggregated (which combines the first 6 data sets into 1 convenient data frame).
+
+Please see the "markdown file and raw data" folder for access to the code used to collect all of the data. The R Markdown file "Final Project.Rmd" includes the code as well as links to the various APIs and organizations from which data was drawn.
+
+## Example
+
+This is a basic example which shows you how to calculate the total homeless population in the United States for each year.
+
+```{r example}
+library(homelessness)
+library(tidyverse)
+data("aggregated")
+aggregated %>% group_by(year) %>% summarize(total_homeless_pop = sum(number_homeless, na.rm = TRUE))
+```
+
+To get more information about each data set, call the help function.
+```{r message=FALSE}
+help(gini)
+```
+

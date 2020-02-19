@@ -1,0 +1,2 @@
+"0","census_list <- url_census_vector %>%"
+"0","  map(~ GET(., query = list(key = Sys.getenv(""CENSUS_TOKEN""))))"

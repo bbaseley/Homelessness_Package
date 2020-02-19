@@ -1,0 +1,4 @@
+"0","set.seed(1743178830)"
+"0","in_train_orange <- createDataPartition(y = OJ$Purchase, p = 0.8, list = FALSE)"
+"0","oj_training <- OJ[in_train_orange, ]"
+"0","oj_testing <- OJ[-in_train_orange, ]"

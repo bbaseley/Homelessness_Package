@@ -1,0 +1,5 @@
+"0","library(dplyr)"
+"0","data(""gini"", package = ""homelessness"")"
+"0","gini %>%"
+"0","  group_by(year) %>%"
+"0","  summarize(avg_gini = mean(gini, na.rm = TRUE))"

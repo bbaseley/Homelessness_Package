@@ -1,0 +1,8 @@
+"0","library(jsonlite)"
+"0","unemployment_list <- unemployment_raw %>%"
+"0","  map(~ content(., as = ""text"")) %>%"
+"0","  map(~ fromJSON(., simplifyDataFrame = TRUE))"
+"0","unemployment_clean <- unemployment_list %>%"
+"0","  map(~ cbind(.$Results$series$data, .$Results$series$seriesID))%>%"
+"0","  map_dfr(~ cbind(.[[1]], seriesid = .[[2]])) %>%"
+"0","  select(-footnotes)"

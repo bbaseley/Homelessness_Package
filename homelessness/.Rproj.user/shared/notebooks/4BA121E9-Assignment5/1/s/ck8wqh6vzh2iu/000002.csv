@@ -1,0 +1,5 @@
+"0","rf_grid <- data.frame(.mtry = 2:5)"
+"0","ctrl <- trainControl(method = ""cv"", number = 2)"
+"0","out <- train(y_factor ~ . -y, data = training_loan, method = ""rf"","
+"0","             trControl = ctrl, tuneGrid = rf_grid, "
+"0","             ntrees = 10)"

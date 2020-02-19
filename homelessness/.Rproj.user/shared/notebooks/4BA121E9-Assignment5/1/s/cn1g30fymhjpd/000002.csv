@@ -1,0 +1,3 @@
+"0","logit <- glm(y_factor == ""yes"" ~ . -y, data = training_loan, family = binomial(link = ""logit""))"
+"0","y_hat_logit <- predict(logit, newdata = testing_loan, type = ""response"")"
+"0","z_logit <- factor(y_hat_logit > 0.5, levels = c(TRUE, FALSE), labels = c(""yes"", ""no""))"

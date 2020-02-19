@@ -1,0 +1,3 @@
+"0","marsGrid <- expand.grid(.degree = 1:3, .nprune = 1:10)"
+"0","mars <- train(Purchase ~ ., data = oj_training,"
+"0","              method = ""earth"", trControl = ctrl, tuneGrid = marsGrid)"

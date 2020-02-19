@@ -1,0 +1,5 @@
+"0","nnetGrid <- expand.grid(.decay = c(0, 0.01, .1),"
+"0","                        .size = c(1:10))"
+"0","neuralnet <- train(Purchase ~ ., data = oj_training, method = ""nnet"","
+"0","            trControl = ctrl, tuneGrid = nnetGrid,"
+"0","            preProcess = c(""center"", ""scale""), trace = FALSE)"

@@ -1,0 +1,8 @@
+"0","library(caret)"
+"0","set.seed(1743178830)"
+"0","rownames(College) <- NULL"
+"0","College$P.Acc <- College$Accept / College$Apps * 100 # Create variable for acceptance rate"
+"0","College$P.Enroll <- College$Enroll / College$Accept * 100 # Create variable for enrollment rate"
+"0","in_train_college <- createDataPartition(y = College$Outstate, p = 0.8, list = FALSE)"
+"0","training_college <- College[in_train_college, ]"
+"0","testing_college <- College[-in_train_college, ]"

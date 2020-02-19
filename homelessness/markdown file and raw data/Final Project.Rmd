@@ -1,0 +1,212 @@
+---
+title: "MDS Final Project"
+author: "Braden Baseley"
+date: "12/7/2019"
+output: html_document
+---
+
+# 1. Collect HUD  Data
+HUD data can be found [here](https://www.hudexchange.info/resource/5783/2018-ahar-part-1-pit-estimates-of-homelessness-in-the-us/). The first step is to collect data on the number of homeless people in each state (2007 - 2018 Point-in-Time Estimates by State). The information is given as a spreadsheet with multiple tabs/sheets, so I will have to read it into R using iteration.
+```{r message=FALSE, warning=FALSE}
+library(readxl)
+library(tidyverse)
+
+states_list <- data.frame(state.abb, state.name, state.region) # Create dataframe of state names/abbreviations/regions
+file <- "homeless.xlsx" # File is saved in the 'markdown file and raw data' folder
+sheets <- excel_sheets(file)[2:13] # Grab 2018-2007 sheets only
+
+homeless_raw <- sheets %>% # Read all tabs into R at once
+  map(~ read_excel(file, sheet = .))
+
+homeless_df <- homeless_raw %>% # Pull all list elements into a single dataframe
+  map_dfc(rbind)
+```
+
+The data frame is quite messy because it binded all of the elements by column. I'll clean it up in this step.
+```{r warning=FALSE}
+homeless_clean <- homeless_df %>%
+  select(State, contains("Overall")) %>% # Only grabbing the overall number of homeless people per year
+  gather(key, value, -State) %>%
+  separate(key, into = c("overall", "year"), sep = ",") %>%
+  transmute(state.abb = State, year = year, number_homeless = value) %>%
+  inner_join(states_list, by = "state.abb") %>%
+  select(state = state.name, year, number_homeless)
+
+homeless_clean$year <- as.integer(str_remove(homeless_clean$year, " "))
+homeless_clean$number_homeless <- as.numeric(homeless_clean$number_homeless)
+
+saveRDS(homeless_clean, file = "homeless.RDS")
+```
+
+# 2. Get BLS Data
+Next, I will grab unemployment data for each state through the Bureau of Labor Statistics. The data can be found [here](https://www.bls.gov/lau/). To pull the unemployment data, I need series IDs for every state. They all follow a general pattern (LAUSTXX0000000000003), with the "XX" referring to a unique state. "XX" can take on a unique value from 01 to 56, so I will begin by using a `for` loop to quickly make a vector of all the series IDs. For whatever reason, BLS skips certain numbers (3, 7, 14, 43, 52), so I remove those from the vector at the end.
+
+```{r}
+unemp_codes <- 0
+for (i in 1:56) {
+  if (i < 10) {
+    unemp_codes[i] <- paste0("LAUST", 0, i, "0000000000003")
+  } else { 
+    unemp_codes[i] <- paste0("LAUST", i, "0000000000003")
+  }
+}
+
+unemp_codes <- unemp_codes[-c(3, 7, 14, 43, 52)] # BLS skips these numbers
+```
+
+I will now extract the data from the BLS API.
+```{r}
+library(httr)
+
+base <- "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+urls <- paste0(base, unemp_codes)
+
+param <- list('startyear' = 2007,
+              'endyear' = 2018,
+              'annualaverage' = TRUE,
+              'registrationKey' = Sys.getenv("BLS_TOKEN"))
+
+unemployment_raw <- urls %>%
+  map(~ GET(., query = param))
+```
+
+The data is given as JSON, so I need to convert it into a data frame.
+```{r message=FALSE, warning=FALSE}
+library(jsonlite)
+unemployment_list <- unemployment_raw %>%
+  map(~ content(., as = "text")) %>%
+  map(~ fromJSON(., simplifyDataFrame = TRUE))
+
+unemployment_clean <- unemployment_list %>%
+  map(~ cbind(.$Results$series$data, .$Results$series$seriesID))%>%
+  map_dfr(~ cbind(.[[1]], seriesid = .[[2]])) %>%
+  select(-footnotes)
+```
+
+Now, I have to convert the series IDs into something more meaningful--the name of the state. The BLS provides a table of state names and SRD codes, which can be found [here](https://download.bls.gov/pub/time.series/la/la.state_region_division).
+```{r message=FALSE}
+bls_names <- read.delim("https://download.bls.gov/pub/time.series/la/la.state_region_division", 
+                        col.names = c("srd code", "state"))
+
+unemployment_clean$srd.code <- str_extract(unemployment_clean$seriesid, pattern = "[0-9][0-9]") %>%
+  as.numeric(.)
+
+unemployment_final <- inner_join(unemployment_clean, bls_names, by = "srd.code") %>%
+  filter(periodName == "Annual") %>%
+  select(state, year, unemployment = value)
+
+unemployment_final$unemployment <- as.numeric(unemployment_final$unemployment)
+unemployment_final$year <- as.integer(unemployment_final$year)
+
+unemployment <- saveRDS(object = unemployment_final, file = "unemployment.RDS")
+```
+
+# 3. Get Census Data
+Next, I will grab some economic/social characteristics from the US Census Bureau's American Community Survey. The documentation to the API can be found [here](https://www.census.gov/data/developers/data-sets/acs-5year.html). The Census Bureau does not allow you to specify years/series IDs in the query parameters; rather, it is specified in the base URL. I will be collecting 3 separate variables from the survey (median gross rent as a share of household income, gini indexes and population) for each state from 2010 to 2017 (earliest/latest years). I will begin by writing a `for` loop to quickly get the URLs. I have to use a nested `for` loop to iterate over each combination of year and series ID, which represents 24 unique URLs.
+
+```{r}
+years <- 2010:2017
+ids <- c("B25071_001E", "B19083_001E", "B01003_001E")
+
+urls_census <- matrix(nrow = 8, ncol = 3, 0)
+colnames(urls_census) <- ids
+for (i in 1:length(years)) {
+  for (j in 1:length(ids)) {
+    urls_census[i, j] <- paste0("https://api.census.gov/data/", years[i], "/acs/acs5?get=NAME,", ids[j], "&for=state:*")
+  }
+}
+
+url_census_vector <- c(urls_census[, 1], urls_census[, 2], urls_census[, 3])
+```
+
+Next, I will query the Census API.
+```{r}
+census_list <- url_census_vector %>%
+  map(~ GET(., query = list(key = Sys.getenv("CENSUS_TOKEN"))))
+```
+
+The data is given as JSON, so I need to convert it into a data frame and clean it up.
+```{r message=FALSE, warning=FALSE}
+census <- census_list %>%
+  map(~ content(., as = "text")) %>%
+  map(~ fromJSON(., simplifyDataFrame = TRUE)) %>%
+  map(~ as.data.frame(.))
+
+year_list <- rep(c(2010:2017), 3) # Add years to each list
+for (i in 1:length(year_list)) {
+  census[[i]][["V4"]] <- year_list[i]
+}
+
+for (i in 1:length(census))  { # Rename list names to make it easier to concatenate
+  names(census[[i]]) <- c("state", as.character(census[[i]][1,2]), "statecode", "year")
+}
+
+census_clean <- census %>%
+  map_dfr(~ .) %>%
+  filter(state != "NAME") %>%
+  select(state, year, rentincome = B25071_001E, gini = B19083_001E, population = B01003_001E) %>%
+  gather(key, value, rentincome:population) %>%
+  filter(!is.na(value))
+
+rentincome <- census_clean %>%
+  filter(key == "rentincome") %>%
+  select(state, year, rentincome = value)
+
+rentincome$rentincome <- as.numeric(rentincome$rentincome)
+
+gini <- census_clean %>%
+  filter(key == "gini") %>%
+  select(state, year, gini = value)
+
+gini$gini <- as.numeric(gini$gini)
+
+population <- census_clean %>%
+  filter(key == "population") %>%
+  select(state, year, population = value)
+
+population$population <- as.numeric(population$population)
+
+saveRDS(rentincome, "rentincome.RDS")
+saveRDS(gini, "gini.RDS")
+saveRDS(population, "population.RDS")
+```
+
+# 4. Scrape Wikipedia
+I will now collect GDP per capita statistics for all states by scraping Wikipedia. I could have used an API, but I want to showcase some different skills here.
+```{r message=FALSE, warning=FALSE}
+library(rvest)
+library(xml2)
+url_wiki <- "https://en.wikipedia.org/wiki/List_of_U.S._states_by_GDP_per_capita"
+wiki <- read_html(url_wiki)
+table <- html_node(wiki, xpath = '//*[@id="mw-content-text"]/div/table[1]')
+gdp_raw <- html_table(table)
+gdp_clean <- gdp_raw %>%
+  select(-Rank) %>%
+  gather(year, gdp, `2018`:`2011`) %>%
+  rename(state = State) %>%
+  filter(state != "United States")
+
+gdp_clean$state <- factor(gdp_clean$state)
+gdp_clean$year <- as.integer(gdp_clean$year)
+gdp_clean$gdp <- str_replace(gdp_clean$gdp, pattern = ",", replacement = "")
+gdp_clean$gdp <- as.numeric(gdp_clean$gdp)
+
+saveRDS(gdp_clean, "gdp.RDS")
+```
+
+# 5. Combining Data Sets
+Lastly, I will combine all of the individual data sets into one large data set.
+```{r message=FALSE, warning=FALSE}
+variables <- c("gdp", "gini", "homeless", "population", "rentincome", "unemployment")
+rds <- paste0(variables, ".RDS")
+
+final_dataset <- map_dfr(rds, readRDS) %>%
+  unite(state.year, state, year) %>%
+  gather(key, value, gdp:unemployment) %>%
+  filter(!is.na(value)) %>%
+  spread(key, value) %>%
+  separate(state.year, into = c("state", "year"), sep = "_") %>%
+  mutate(share_homeless = (number_homeless / population) * 10000)
+
+saveRDS(final_dataset, "aggregated.RDS")
+```

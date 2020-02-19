@@ -1,0 +1,5 @@
+"0","data(""rentincome"", package = ""homelessness"")"
+"0","rentincome %>%"
+"0","  group_by(year) %>%"
+"0","  summarize(avg_value = mean(rentincome, na.rm = TRUE),"
+"0","            median_value = median(rentincome, na.rm = TRUE))"

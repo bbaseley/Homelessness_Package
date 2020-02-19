@@ -1,0 +1,2 @@
+"0","library(gam)"
+"0","gam <- gam(Outstate ~ Private + s(P.Acc, df = 4) + s(P.Enroll, df = 4), data = training_college)"

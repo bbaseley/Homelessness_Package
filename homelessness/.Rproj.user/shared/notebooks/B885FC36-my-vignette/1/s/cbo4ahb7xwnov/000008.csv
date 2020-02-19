@@ -1,0 +1,4 @@
+"0","data(""population"", package = ""homelessness"")"
+"0","population %>%"
+"0","  group_by(year) %>%"
+"0","  summarize(USpopulation = sum(population, na.rm = TRUE))"

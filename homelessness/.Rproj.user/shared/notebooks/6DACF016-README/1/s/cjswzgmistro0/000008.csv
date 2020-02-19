@@ -1,0 +1,4 @@
+"0","library(homelessness)"
+"0","library(tidyverse)"
+"0","data(""aggregated"")"
+"0","aggregated %>% group_by(year) %>% summarize(total_homeless_pop = sum(number_homeless, na.rm = TRUE))"

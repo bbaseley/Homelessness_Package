@@ -1,0 +1,103 @@
+---
+title: "Homelessness Vignette"
+author: "Braden Baseley"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{my-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(homelessness)
+```
+
+# Gini
+The `gini` data set can be used to analyze changes in the Gini index over time. The Gini index serves as a measure of income inequality. It can take on a value between 0 and 1, with 0 indicating perfect equality (i.e. every member receives an equal share of income) and 1 indicating perfect inequality (i.e. only one recipient or group of recipients receives all the income).
+```{r message=FALSE}
+library(dplyr)
+data("gini", package = "homelessness")
+gini %>%
+  group_by(year) %>%
+  summarize(avg_gini = mean(gini, na.rm = TRUE))
+```
+
+Looking at the table above, we can see that the Gini index for the United States has slowly increased year-over-year from 2010 to 2017.
+
+# Homeless
+
+The `homeless` data set contains information about the number of homeless per 10,000 people for each U.S. State.
+```{r}
+library(ggplot2)
+data("homeless", package = "homelessness")
+aggregated %>% 
+  filter(state %in%  c("California", "Oregon", "Washington", "Hawaii", "Alaska"),
+         year %in% 2010:2017) %>%
+           ggplot(aes(x = year, y = share_homeless, group = state, color = state)) + geom_line() +
+  labs(y = "Homeless Population per 10,000 People",
+       title = "Change in Homeless Population in Western U.S. States")
+```
+
+The chart above shows how homelessness has changed from 2010 to 2017 for several Western states. In 2017, Hawaii's homeless rate is about twice as large as the rate for Alaska.
+
+# Unemployment
+
+The `unemployment` data set measures the unemployment rate for each state. This variable measures the number of unemployed people as a percentage of the labor force, which can be used as one proxy for the health of the economy. BLS defines an unemployed person as one who does not have a job, has actively looked for work in the past 4 weeks, and is currently available for work. The labor force is defined as all people age 16 and older who are either employed or unemployed.
+```{r}
+data("unemployment", package = "homelessness")
+unemployment %>% filter(year == 2018) %>%
+  ggplot(aes(y = unemployment)) + geom_boxplot() + coord_flip()
+```
+
+The median unemployment rate in 2018 is slightly below 4.0%. There appears to be one outlier north of 6%.
+
+# Aggregated
+
+The `aggregated` data set concatenates all of the other data sets into one convenient data frame, which makes it ideal for modeling and comparing the relationship between homelessness and other economic characteristics.
+```{r}
+data("aggregated", package = "homelessness")
+summary(lm(share_homeless ~ gini + I(gini^2) + unemployment + rentincome + I(rentincome^2) + log(gdp), data = aggregated))
+ggplot(aggregated, aes(x = unemployment, y = share_homeless)) + geom_point() + geom_smooth(method = "lm", se = FALSE)
+```
+
+The linear model shows a positive relationship between the unemployment rate and the homeless rate for U.S. states.
+
+# GDP
+The `gdp` data set includes GDP per capita estimates for all U.S. states. 
+```{r}
+data("gdp")
+hist(gdp$gdp)
+```
+
+The distribution of GDP per capita appears shows that most of the data's clustered somewhere between \$40,000 to \$60,000. However, there are a few large outliers near \$160,000.
+
+# Population
+The `population` data set contains useful estimates of the population for each U.S. state.
+```{r}
+data("population", package = "homelessness")
+population %>%
+  group_by(year) %>%
+  summarize(USpopulation = sum(population, na.rm = TRUE))
+```
+
+The total U.S. population for each year can be found by summing across all states. The data suggests a stead increase in the U.S. population from 2010 to 2017.
+
+# Rent/Income
+The `rentincome` data set contains measures of the median percentage of household income spent on gross rent for each state, which can be thought of as a measure of housing affordability. Typically, 30% is believed to be the maximum share of income that households should allocate to rent, otherwise they face a considerable housing burden.
+```{r}
+data("rentincome", package = "homelessness")
+rentincome %>%
+  group_by(year) %>%
+  summarize(avg_value = mean(rentincome, na.rm = TRUE),
+            median_value = median(rentincome, na.rm = TRUE))
+```
+
+$rentincome$ appears to have peaked around 2013/2014 depending on the measure (median peaks in 2014, mean peaks in 2013). Since then, $rentincome$ has declined slightly across both measures.
